@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Luna vs Mentiras: El Secreto</title>
+    <style>
+        :root {
+            --grass-light: #4caf50;
+            --grass-dark: #388e3c;
+            --brown-earth: #5d4037;
+        }
+
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            overflow: hidden; background: #1a1a1a; font-family: 'Segoe UI', sans-serif;
+        }
+
+        #escenario {
+            position: relative; width: 100vw; height: 100vh;
+            background-image: url('fondo de la carta.png');
+            background-size: cover; background-position: center;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+
+        /* HUD mejorado */
+        #hud {
+            display: flex; gap: 30px; margin-bottom: 20px;
+            background: rgba(0, 0, 0, 0.85); padding: 15px 35px;
+            border-radius: 50px; border: 3px solid #ffd700;
+            color: white; box-shadow: 0 10px 25px rgba(0,0,0,0.7);
+            z-index: 10;
+        }
+
+        .stat { text-align: center; }
+        .stat span { display: block; font-weight: bold; font-size: 1.6rem; color: #ffd700; }
+
+        /* El Jardín */
+        #jardin {
+            display: grid;
+            grid-template-columns: repeat(5, 95px);
+            grid-template-rows: repeat(3, 95px);
+            gap: 4px;
+            background: var(--brown-earth);
+            padding: 12px; border-radius: 12px;
+            position: relative; box-shadow: 0 25px 50px rgba(0,0,0,0.8);
+        }
+
+        .casilla {
+            width: 95px; height: 95px;
+            background: var(--grass-light);
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; font-size: 55px; position: relative;
+            transition: 0.2s;
+        }
+
+        .casilla:nth-child(even) { background: var(--grass-dark); }
+        .casilla:hover { filter: brightness(1.2) contrast(1.1); }
+
+        /* Animaciones de Sprites */
+        .planta { 
+            animation: breathe 1.2s infinite ease-in-out alternate; 
+            filter: drop-shadow(0 8px 4px rgba(0,0,0,0.4));
+        }
+
+        .zombie {
+            position: absolute; font-size: 55px; 
+            transition: left 0.1s linear;
+            filter: drop-shadow(0 10px 10px rgba(0,0,0,0.6));
+            z-index: 5;
+        }
+
+        .guisante {
+            position: absolute; width: 22px; height: 22px;
+            background: radial-gradient(circle at 30% 30%, #a2d149, #1b5e20);
+            border-radius: 50%; border: 2px solid #0a2d0d;
+            box-shadow: 0 0 12px #76ff03; z-index: 4;
+        }
+
+        @keyframes breathe {
+            from { transform: scale(1) translateY(0); }
+            to { transform: scale(1.1) translateY(-8px); }
+        }
+
+        @keyframes hitFlash {
+            0% { filter: brightness(3); transform: scale(1.2); }
+            100% { filter: brightness(1); transform: scale(1); }
+        }
+
+        .danio { animation: hitFlash 0.2s ease-out; }
+
+        /* Revelación de la Carta */
+        #pantalla-final {
+            display: none; position: fixed; top: 0; left: 0;
+            width: 100%; height: 100%; 
+            background: radial-gradient(circle, rgba(0,0,0,0.3) 0%, #000 90%);
+            z-index: 100; justify-content: center; align-items: center;
+        }
+
+        #carta {
+            max-width: 85%; max-height: 85%;
+            box-shadow: 0 0 80px rgba(255,255,255,0.2);
+            transform: scale(0.7) translateY(150px); opacity: 0;
+            transition: all 1.5s cubic-bezier(0.19, 1, 0.22, 1);
+        }
+
+        .mostrar-carta { transform: scale(1) translateY(0) !important; opacity: 1 !important; }
+
+    </style>
+</head>
+<body>
+
+<div id="escenario">
+    <div id="hud">
+        <div class="stat">SOLES<span id="dinero">20</span></div>
+        <div class="stat">ZOMBIES<span id="contador">0/10</span></div>
+        <div class="stat">COSTO 🌱<span>10</span></div>
+    </div>
+
+    <div id="jardin">
+        </div>
+</div>
+
+<div id="pantalla-final">
+    <img src="../Imagenes/carta de Luna.png" id="carta">
+</div>
+
+<script>
+    const jardin = document.getElementById('jardin');
+    const dineroTxt = document.getElementById('dinero');
+    const contadorTxt = document.getElementById('contador');
+    
+    let dinero = 20;
+    let derrotados = 0;
+    const metaJuego = 10;
+    let plantas = [];
+    let zombies = [];
+    let guisantes = [];
+
+    // Construcción del césped
+    for (let i = 0; i < 15; i++) {
+        const casilla = document.createElement('div');
+        casilla.classList.add('casilla');
+        casilla.onclick = () => {
+            if (casilla.innerHTML === "" && dinero >= 10) {
+                dinero -= 10;
+                actualizarHUD();
+                casilla.innerHTML = '<span class="planta">🌱</span>';
+                plantas.push({
+                    row: Math.floor(i / 5),
+                    col: i % 5,
+                    lastShot: 0
+                });
+            }
+        };
+        jardin.appendChild(casilla);
+    }
+
+    function actualizarHUD() {
+        dineroTxt.innerText = dinero;
+        contadorTxt.innerText = `${derrotados}/${metaJuego}`;
+    }
+
+    function spawnZombie() {
+        if (derrotados + zombies.length >= metaJuego) return;
+        const fila = Math.floor(Math.random() * 3);
+        const zElem = document.createElement('div');
+        zElem.className = 'zombie';
+        zElem.innerText = '🧟';
+        zElem.style.top = (fila * 99 + 25) + "px";
+        zElem.style.left = "580px";
+        jardin.appendChild(zElem);
+        zombies.push({ element: zElem, x: 580, row: fila, hp: 5 });
+    }
+
+    function gameLoop() {
+        const ahora = Date.now();
+
+        // Lógica de Disparo
+        plantas.forEach(p => {
+            if (ahora - p.lastShot > 1700) {
+                const g = document.createElement('div');
+                g.className = 'guisante';
+                g.style.top = (p.row * 99 + 62) + "px";
+                g.style.left = (p.col * 99 + 75) + "px";
+                jardin.appendChild(g);
+                guisantes.push({ element: g, x: p.col * 99 + 75, row: p.row });
+                p.lastShot = ahora;
+            }
+        });
+
+        // Lógica de Proyectiles y Colisiones
+        guisantes.forEach((g, gIdx) => {
+            g.x += 8;
+            g.element.style.left = g.x + "px";
+            
+            zombies.forEach((z, zIdx) => {
+                if (z.row === g.row && g.x > z.x && g.x < z.x + 45) {
+                    z.hp--;
+                    z.element.classList.add('danio');
+                    setTimeout(() => z.element.classList.remove('danio'), 150);
+                    
+                    g.element.remove();
+                    guisantes.splice(gIdx, 1);
+
+                    if (z.hp <= 0) {
+                        z.element.remove();
+                        zombies.splice(zIdx, 1);
+                        derrotados++;
+                        dinero += 5; // Recompensa
+                        actualizarHUD();
+                        if (derrotados >= metaJuego) finalizarPartida();
+                    }
+                }
+            });
+
+            if (g.x > 620) {
+                g.element.remove();
+                guisantes.splice(gIdx, 1);
+            }
+        });
+
+        // Movimiento de Enemigos
+        zombies.forEach(z => {
+            z.x -= 0.65;
+            z.element.style.left = z.x + "px";
+            if (z.x < -30) {
+                alert("¡Los zombis han llegado al secreto! Inténtalo de nuevo.");
+                location.reload();
+            }
+        });
+
+        if (derrotados < metaJuego) requestAnimationFrame(gameLoop);
+    }
+
+    function finalizarPartida() {
+        const final = document.getElementById('pantalla-final');
+        final.style.display = 'flex';
+        setTimeout(() => {
+            document.getElementById('carta').classList.add('mostrar-carta');
+        }, 150);
+    }
+
+    // Iniciar Generación de Zombies
+    setInterval(spawnZombie, 2800);
+    gameLoop();
+</script>
+
+</body>
+</html>
